@@ -1,1 +1,100 @@
 https://www.youtube.com/watch?v=cojaefzhChI&list=PLIMYb25g876g6muopNjnGtDrOnDVqPCz6&index=4
+
+
+
+version: '3.9'
+
+services:
+    redis:
+        image: redis
+        restart: always
+    
+    webapp:
+        restart: always
+        build:
+            context: ./webapp
+        ports:
+            - "8000:8000"
+        command: [ "python3", "./src/manage.py", "runserver", "0.0.0.0:8000"]
+        volumes:
+            - ./db:/app/src/db
+
+    worker:
+        restart: always
+        build:
+            context: ./webapp
+        volumes:
+            - ./cats:/app/src/cats
+        command: ['celery', '--workdir=./src', '-A', 'proj', 'worker' ]
+
+    celery-beats:
+        restart: always
+        build: 
+            context: ./webapp
+        volumes: 
+            - ./db:/app/src/db
+        command: ['celery', '--workdir=./src', '-A', 'proj', 'beat', '-l', 'INFO', '--scheduler', 'django_celery_beat.schedulers:DatabaseScheduler']
+
+
+
+
+
+
+
+
+
+
+
+
+        version: '3.9'
+
+# Вынести пароли в  .env
+
+services:
+    redis:
+        image: redis:7.0.4-bullseye
+        restart: always
+
+    postgres_db:
+        image: postgres:14.4-bullseye
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        environment:
+            - POSTGRES_DB=test_db
+            - POSTGRES_USER=admin
+            - POSTGRES_PASSWORD=admin
+        ports:
+            - 5432:5432
+
+    django:
+        # restart: always
+        build:
+            context: ./app
+        ports:
+            - 8000:8000
+        # command: [ "python3", "./src/manage.py", "runserver", "0.0.0.0:8000"]
+        command: bash -c "python ./src/manage.py migrate --noinput && 
+            python ./src/manage.py runserver 0.0.0.0:8000"
+        # volumes:
+        #     - ./db:/app/src/db
+        depends_on:
+            - postgres_db
+
+    worker:
+        restart: always
+        build:
+            context: ./app
+        volumes:
+            - ./cats:/app/src/cats
+        command: ['celery', '--workdir=./src', '-A', 'proj', 'worker' ]
+
+    celery-beats:
+        restart: always
+        build: 
+            context: ./app
+        volumes: 
+            - ./db:/app/src/db
+        command: ['celery', '--workdir=./src', '-A', 'proj', 'beat', '-l', 'INFO', '--scheduler', 'django_celery_beat.schedulers:DatabaseScheduler']
+
+volumes:
+    postgres_data:
